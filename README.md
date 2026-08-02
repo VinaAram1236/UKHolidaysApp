@@ -1,6 +1,6 @@
 # UK Public Holidays Lookup
 
-This program fetches UK public holidays for a given year using the Nager.Date API.
+This program fetches UK public holidays for a given year using the GOV.UK bank holidays API.
 
 ## Usage
 

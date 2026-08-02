@@ -4,29 +4,42 @@ import sys
 import urllib.error
 import urllib.request
 
-API_URL = "https://date.nager.at/api/v3/PublicHolidays/{year}/{country_code}"
-COUNTRY_CODE = "GB"
+API_URL = "https://www.gov.uk/bank-holidays.json"
 
 
 def get_holidays(year: int):
-    """Fetch public holidays for the UK from the Nager.Date API."""
-    url = API_URL.format(year=year, country_code=COUNTRY_CODE)
+    """Fetch UK bank holidays from the GOV.UK API."""
     try:
-        with urllib.request.urlopen(url, timeout=10) as response:
+        with urllib.request.urlopen(API_URL, timeout=10) as response:
             body = response.read()
-            return json.loads(body.decode("utf-8"))
+            payload = json.loads(body.decode("utf-8"))
+            return extract_holidays(payload, year=year)
     except urllib.error.HTTPError as exc:
         raise RuntimeError(f"HTTP error {exc.code}: {exc.reason}") from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Network error: {exc.reason}") from exc
 
 
+def extract_holidays(payload, year=None):
+    """Flatten the GOV.UK bank holidays payload into a list of holiday records."""
+    holidays = []
+    for division in payload.values():
+        for event in division.get("events", []):
+            event_date = event.get("date")
+            if not event_date:
+                continue
+            if year is not None and event_date[:4] != str(year):
+                continue
+            holidays.append({"date": event_date, "name": event.get("title")})
+    return holidays
+
+
 def format_holidays(holidays):
-    """Format the API holiday data into user-friendly strings."""
+    """Format the holiday data into user-friendly strings."""
     lines = []
     for holiday in holidays:
         date = holiday.get("date")
-        name = holiday.get("localName") or holiday.get("name")
+        name = holiday.get("name")
         lines.append(f"{date} - {name}")
     return lines
 
