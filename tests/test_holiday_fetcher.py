@@ -26,6 +26,21 @@ class HolidayFetcherTests(unittest.TestCase):
         self.assertEqual(holidays[0]["name"], "New Year's Day")
         self.assertEqual(holidays[-1]["name"], "Early May Bank Holiday")
 
+    def test_extract_holidays_deduplicates_repeated_events(self):
+        payload = {
+            "england-and-wales": {
+                "events": [{"title": "New Year's Day", "date": "2025-01-01"}]
+            },
+            "scotland": {
+                "events": [{"title": "New Year's Day", "date": "2025-01-01"}]
+            },
+        }
+
+        holidays = extract_holidays(payload, year=2025)
+
+        self.assertEqual(len(holidays), 1)
+        self.assertEqual(holidays[0]["name"], "New Year's Day")
+
 
 if __name__ == "__main__":
     unittest.main()

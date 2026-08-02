@@ -5,32 +5,50 @@ import urllib.error
 import urllib.request
 
 API_URL = "https://www.gov.uk/bank-holidays.json"
+REGION_ALIASES = {
+    "england": "england-and-wales",
+    "wales": "england-and-wales",
+    "england-and-wales": "england-and-wales",
+    "scotland": "scotland",
+    "northern-ireland": "northern-ireland",
+    "ni": "northern-ireland",
+}
 
 
-def get_holidays(year: int):
+def get_holidays(year: int, region=None):
     """Fetch UK bank holidays from the GOV.UK API."""
     try:
         with urllib.request.urlopen(API_URL, timeout=10) as response:
             body = response.read()
             payload = json.loads(body.decode("utf-8"))
-            return extract_holidays(payload, year=year)
+            return extract_holidays(payload, year=year, region=region)
     except urllib.error.HTTPError as exc:
         raise RuntimeError(f"HTTP error {exc.code}: {exc.reason}") from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Network error: {exc.reason}") from exc
 
 
-def extract_holidays(payload, year=None):
+def extract_holidays(payload, year=None, region=None):
     """Flatten the GOV.UK bank holidays payload into a list of holiday records."""
     holidays = []
-    for division in payload.values():
+    seen = set()
+    target_region = REGION_ALIASES.get((region or "").lower()) if region else None
+
+    for key, division in payload.items():
+        if target_region and key != target_region:
+            continue
         for event in division.get("events", []):
             event_date = event.get("date")
             if not event_date:
                 continue
             if year is not None and event_date[:4] != str(year):
                 continue
+            key_name = (event_date, event.get("title"))
+            if key_name in seen:
+                continue
+            seen.add(key_name)
             holidays.append({"date": event_date, "name": event.get("title")})
+    holidays.sort(key=lambda item: item["date"])
     return holidays
 
 
@@ -53,6 +71,12 @@ def parse_args():
         type=int,
         help="The year to lookup public holidays for (for example, 2027).",
     )
+    parser.add_argument(
+        "--region",
+        choices=["england", "wales", "england-and-wales", "scotland", "northern-ireland", "ni"],
+        default=None,
+        help="Optional region filter: england, wales, scotland, or northern-ireland.",
+    )
     return parser.parse_args()
 
 
@@ -64,10 +88,11 @@ def main():
         print("Please provide a year between 1900 and 2100.")
         sys.exit(1)
 
-    print(f"Fetching UK public holidays for {year}...\n")
+    region = args.region
+    print(f"Fetching UK public holidays for {year}{f' in {region}' if region else ''}...\n")
 
     try:
-        holidays = get_holidays(year)
+        holidays = get_holidays(year, region=region)
     except Exception as exc:
         print(f"Error fetching holidays: {exc}")
         sys.exit(1)
